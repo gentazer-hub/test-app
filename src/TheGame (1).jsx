@@ -55,11 +55,25 @@ function buildGame(playerNames) {
   };
 }
 
+// Firestoreは配列の中に配列を保存できないので、handsだけJSON文字列に変換する
+function toFirestore(data) {
+  const d = { ...data };
+  if (d.hands !== undefined) d.handsJson = JSON.stringify(d.hands);
+  delete d.hands;
+  return d;
+}
+function fromFirestore(data) {
+  const d = { ...data };
+  if (d.handsJson !== undefined) d.hands = JSON.parse(d.handsJson);
+  delete d.handsJson;
+  return d;
+}
+
 async function saveGame(code, data) {
-  await setDoc(doc(db, "thegame", code), data);
+  await setDoc(doc(db, "thegame", code), toFirestore(data));
 }
 async function updateGame(code, data) {
-  await updateDoc(doc(db, "thegame", code), data);
+  await updateDoc(doc(db, "thegame", code), toFirestore(data));
 }
 
 // ══════════════════════════════════════════════
@@ -86,7 +100,7 @@ export default function TheGameOnline() {
     if (!roomCode || screen === "home" || screen === "create" || screen === "join") return;
     const unsub = onSnapshot(doc(db, "thegame", roomCode), (snap) => {
       if (!snap.exists()) return;
-      const data = snap.data();
+      const data = fromFirestore(snap.data());
       setGs(data);
       if (data.status === "playing" && screen === "lobby") setScreen("playing");
       if (data.gameResult && screen === "playing") setScreen("result");
@@ -146,7 +160,7 @@ export default function TheGameOnline() {
     const code = joinCode.trim().toUpperCase();
     const snap = await import("firebase/firestore").then(m => m.getDoc(doc(db, "thegame", code)));
     if (!snap.exists()) { showMsg("ルームが見つからないよ"); setLoading(false); return; }
-    const data = snap.data();
+    const data = fromFirestore(snap.data());
     if (data.status !== "lobby") { showMsg("このルームはもう始まってるよ"); setLoading(false); return; }
     const newPlayers = [...data.players, lobbyName.trim()];
     await updateDoc(doc(db, "thegame", code), { players: newPlayers });
